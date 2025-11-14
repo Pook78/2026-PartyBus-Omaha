@@ -12,6 +12,8 @@
       --primary: #ff4500;
       --accent: #00ced1;
       --bg: #fffaf0;
+      --red: #d32f2f;
+      --green: #2e7d32;
     }
     body {font-family: system-ui, sans-serif; max-width: 700px; margin: 0 auto; padding: 1rem; background:var(--bg);}
     h1 {text-align:center; color:var(--primary); margin-bottom:0.5rem;}
@@ -26,13 +28,16 @@
     input, select {border:2px solid #ddd;}
     button {background:var(--primary); color:white; border:none; cursor:pointer; font-weight:bold;}
     button:hover {background:#e63900;}
-    button:disabled {background:#ccc; cursor:not-allowed;}
+    button:disabled {background:#ccc; cursor:not-allowed; opacity:0.7;}
     ul {list-style:none; padding:0;}
     li {padding:0.8rem; background:#fff; margin:0.5rem 0; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1);}
+    .status {font-weight:bold; font-size:0.9rem; margin-left:0.5rem;}
+    .pending {color:var(--red);}
+    .paid {color:var(--green);}
     .total {font-weight:bold; margin:1.5rem 0; text-align:center; font-size:1.2rem; color:var(--primary);}
     .soldout {color:#d00; font-weight:bold; font-size:1.3rem; text-align:center; margin:1rem 0;}
-    .modal {display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; z-index:99;}
-    .modal-content {background:white; padding:1.5rem; border-radius:12px; max-width:90%; text-align:center;}
+    .modal, .fullmodal {display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; z-index:99;}
+    .modal-content, .fullmodal-content {background:white; padding:1.5rem; border-radius:12px; max-width:90%; text-align:center;}
     .close {float:right; font-size:1.5rem; cursor:pointer;}
     .map {margin:1rem 0; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.1); height:220px;}
     .info {background:#e6f7ff; padding:1rem; border-radius:8px; margin:1rem 0; font-size:0.95rem;}
@@ -103,10 +108,20 @@
     </div>
   </div>
 
+  <!-- ===== BUS FULL POPUP ===== -->
+  <div class="fullmodal" id="fullModal">
+    <div class="fullmodal-content">
+      <span class="close" id="fullClose">x</span>
+      <h3>Bus is Full!</h3>
+      <p>Please contact <strong>Bobby</strong> to see if anyone hasn't paid.</p>
+    </div>
+  </div>
+
 <script>
   // ================== EDIT THIS CONFIG ONLY ==================
   const CONFIG = {
     maxSpots: 20,
+    contactName: 'Bobby',
     eventDate: 'February 28, 2026 18:00:00',
     meetTime: '6:00 PM',
     departTime: '6:15 PM',
@@ -114,4 +129,136 @@
     mapEmbedUrl: 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2996.3!2d-96.023!3d41.259!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDHCsDE1JzM1LjIiTiA5NsKwMDInMjUuNSJX!5e0!3m2!1sen!2sus!4v1234567890',
     route: 'Omaha → Wahoo → Ashland → Louisville → back',
     pricePerPerson: 50,
-    venmoUsername: '
+    venmoUsername: 'YourVenmo',
+    venmoLink: 'https://venmo.com/your-venmo',
+    refundPolicy: 'Full refund if bus is canceled'
+  };
+  // ===========================================================
+
+ // Paste your Firebase config below
+  const firebaseConfig = {
+  apiKey: "AIzaSyDXcsti1V6fNhlDTLEOjxA6cRi9StiW-tA",
+  authDomain: "partybus-omaha.firebaseapp.com",
+  databaseURL: "https://partybus-omaha-default-rtdb.firebaseio.com",
+  projectId: "partybus-omaha",
+  storageBucket: "partybus-omaha.firebasestorage.app",
+  messagingSenderId: "463029096908",
+  appId: "1:463029096908:web:e40a660ffae68ef34d0d69"
+};
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database().ref('rsvps');
+
+  // DOM
+  const countdownEl = document.getElementById('countdown');
+  const spotsEl = document.getElementById('spotsLeft');
+  const soldOutEl = document.getElementById('soldOutMessage');
+  const modal = document.getElementById('modal');
+  const fullModal = document.getElementById('fullModal');
+  const close = document.getElementById('close');
+  const fullClose = document.getElementById('fullClose');
+  const nameInput = document.getElementById('name');
+  const emailInput = document.getElementById('email');
+  const guestsInput = document.getElementById('guests');
+  const joinBtn = document.getElementById('join');
+  const listEl = document.getElementById('list');
+  const totalEl = document.getElementById('total');
+
+  // Update text
+  document.getElementById('eventDate').textContent = new Date(CONFIG.eventDate).toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
+  document.getElementById('meetTime').textContent = document.getElementById('meetTime2').textContent = document.getElementById('meetTime3').textContent = CONFIG.meetTime;
+  document.getElementById('departTime').textContent = CONFIG.departTime;
+  document.getElementById('meetLocation').textContent = CONFIG.meetLocation;
+  document.getElementById('route').textContent = CONFIG.route;
+  document.getElementById('price').textContent = document.getElementById('price2').textContent = CONFIG.pricePerPerson;
+  document.getElementById('refund').textContent = CONFIG.refundPolicy;
+  document.getElementById('venmoLink').href = document.getElementById('modalVenmo').href = CONFIG.venmoLink;
+  document.getElementById('venmoLink').textContent = document.getElementById('modalVenmo').textContent = '@' + CONFIG.venmoUsername;
+  document.querySelector('iframe').src = CONFIG.mapEmbedUrl;
+
+  // Close modals
+  close.onclick = () => modal.style.display = 'none';
+  fullClose.onclick = () => fullModal.style.display = 'none';
+  window.onclick = e => {
+    if (e.target === modal) modal.style.display = 'none';
+    if (e.target === fullModal) fullModal.style.display = 'none';
+  };
+
+  // Countdown
+  function updateCountdown() {
+    const now = new Date().getTime();
+    const event = new Date(CONFIG.eventDate).getTime();
+    const diff = event - now;
+    if (diff <= 0) {
+      countdownEl.textContent = "Luau time! Head to meet-up!";
+      countdownEl.style.color = "#4caf50";
+      return;
+    }
+    const days = Math.floor(diff / (1000*60*60*24));
+    const hours = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
+    const minutes = Math.floor((diff % (1000*60*60)) / (1000*60));
+    const seconds = Math.floor((diff % (1000*60)) / 1000);
+    countdownEl.innerHTML = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+  }
+  setInterval(updateCountdown, 1000);
+  updateCountdown();
+
+  // Submit RSVP
+  joinBtn.onclick = () => {
+    const totalPeople = Array.from(document.querySelectorAll('#list li')).reduce((sum, li) => {
+      const match = li.textContent.match(/(\d+) person/);
+      return sum + (match ? parseInt(match[1]) : 0);
+    }, 0);
+    const spotsLeft = CONFIG.maxSpots - totalPeople;
+
+    if (spotsLeft <= 0) {
+      fullModal.style.display = 'flex';
+      return;
+    }
+
+    const name = nameInput.value.trim();
+    const email = emailInput.value.trim();
+    const guests = parseInt(guestsInput.value);
+    if (!name) return alert('Enter your name');
+
+    const totalCost = guests * CONFIG.pricePerPerson;
+    db.push({name, email, guests, paid: false, ts: Date.now()});
+    nameInput.value = ''; emailInput.value = ''; guestsInput.value = 1;
+    document.getElementById('modalTotal').textContent = totalCost;
+    modal.style.display = 'flex';
+  };
+
+  // Live update
+  db.on('value', snapshot => {
+    const data = snapshot.val() || {};
+    const entries = Object.values(data);
+    entries.sort((a,b)=> b.ts - a.ts);
+
+    const totalPeople = entries.reduce((s,e)=>s+e.guests,0);
+    const spotsLeft = CONFIG.maxSpots - totalPeople;
+
+    // Update spots
+    spotsEl.textContent = `Spots left: ${spotsLeft >= 0 ? spotsLeft : 0}`;
+    if (spotsLeft <= 0) {
+      joinBtn.disabled = true;
+      joinBtn.textContent = "Sold Out";
+      soldOutEl.style.display = 'block';
+    } else {
+      joinBtn.disabled = false;
+      joinBtn.textContent = "Yes, I’m joining!";
+      soldOutEl.style.display = 'none';
+    }
+
+    // List with payment status
+    listEl.innerHTML = '<ul>' + entries.map(e => {
+      const status = e.paid === true 
+        ? `<span class="status paid">(paid)</span>`
+        : `<span class="status pending">(pending payment)</span>`;
+      return `<li><strong>${e.name}</strong> – ${e.guests} ${e.guests===1?'person':'people'} ${status}</li>`;
+    }).join('') + '</ul>';
+
+    // Total
+    totalEl.innerHTML = `Total: <strong>${totalPeople}</strong> ${totalPeople===1?'person':'people'} on the bus`;
+  });
+</script>
+</body>
+</html>
