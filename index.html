@@ -3,129 +3,141 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Your Party Bus RSVP</title>
+  <title>Luau Party Bus RSVP</title>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <style>
     :root {
-      --primary: #e91e63;
-      --accent: #ff9800;
-      --bg: #fff8f8;
+      --primary: #ff4500;   /* orange-red */
+      --accent: #00ced1;    /* turquoise */
+      --bg: #fffaf0;
     }
     body {font-family: system-ui, sans-serif; max-width: 700px; margin: 0 auto; padding: 1rem; background:var(--bg);}
     h1 {text-align:center; color:var(--primary); margin-bottom:0.5rem;}
     .banner {background:linear-gradient(135deg,var(--primary),var(--accent)); color:white; padding:1.5rem; border-radius:12px; margin-bottom:1.5rem; text-align:center;}
     .banner h2 {margin:0.5rem 0; font-size:1.8rem;}
     .banner p {margin:0.4rem 0; font-size:1rem;}
+    .theme {font-weight:bold; font-size:1.1rem; color:#fff;}
     .countdown {font-size:1.4rem; font-weight:bold; color:#fff; margin:0.8rem 0;}
+    .spots {font-size:1.2rem; font-weight:bold; color:#fff; margin:0.5rem 0;}
     .form {margin:2rem 0; text-align:center;}
-    input, button {font-size:1rem; padding:0.7rem; margin:0.4rem; border-radius:8px; width:100%; max-width:280px;}
-    input {border:2px solid #ddd;}
+    input, select, button {font-size:1rem; padding:0.7rem; margin:0.4rem; border-radius:8px; width:100%; max-width:280px;}
+    input, select {border:2px solid #ddd;}
     button {background:var(--primary); color:white; border:none; cursor:pointer; font-weight:bold;}
-    button:hover {background:#c2185b;}
+    button:hover {background:#e63900;}
+    button:disabled {background:#ccc; cursor:not-allowed;}
     ul {list-style:none; padding:0;}
     li {padding:0.8rem; background:#fff; margin:0.5rem 0; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1);}
     .total {font-weight:bold; margin:1.5rem 0; text-align:center; font-size:1.2rem; color:var(--primary);}
+    .soldout {color:#d00; font-weight:bold; font-size:1.3rem; text-align:center; margin:1rem 0;}
     .modal {display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; z-index:99;}
     .modal-content {background:white; padding:1.5rem; border-radius:12px; max-width:90%; text-align:center;}
     .close {float:right; font-size:1.5rem; cursor:pointer;}
     .map {margin:1.5rem 0; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.1);}
-    .info {background:#f0f0f0; padding:1rem; border-radius:8px; margin:1rem 0; font-size:0.95rem;}
+    .info {background:#e6f7ff; padding:1rem; border-radius:8px; margin:1rem 0; font-size:0.95rem;}
+    .note {font-size:0.85rem; color:#555; text-align:center; margin:1rem 0;}
   </style>
 </head>
 <body>
-  <!-- ===== EVENT BANNER ===== -->
+  <!-- ===== LUAU BANNER ===== -->
   <div class="banner">
-    <h2>Party Bus Adventure 2025!</h2>
-    <p><strong>Date:</strong> <span id="eventDate">Saturday, February 31, 2026</span></p>
-    <p><strong>Meet-up Time:</strong> <span id="meetTime">6:00 PM</span></p>
-    <p><strong>Location:</strong> <span id="meetLocation">Parking Lot aaa behind Target, 72nd & Dodge, Omaha</span></p>
-    <p><strong>Route:</strong> <span id="route">Omaha → Wahoo → Ashland → Louisville → back</span></p>
-    <p><strong>Cost:</strong> $<span id="price">50</span> per person</p>
-    <p><strong>Refund:</strong> <span id="refund">Full refund if bus is canceled</span></p>
-    <p><strong>Reserve:</strong> Send $<span id="price2">45</span> to <a href="#" id="venmoLink" style="color:#fff; text-decoration:underline;" target="_blank">@YourVenmo</a></p>
+    <h2>Luau Party Bus 2026!</h2>
+    <p class="theme">Dress in Hawaiian gear! (Lei, grass skirt, flip flops, etc.)</p>
+    <p><strong>Date:</strong> <span id="eventDate"></span></p>
+    <p><strong>Meet-up Time:</strong> <span id="meetTime"></span></p>
+    <p><strong>Location:</strong> <span id="meetLocation"></span></p>
+    <p><strong>Route:</strong> <span id="route"></span></p>
+    <p><strong>Cost:</strong> $<span id="price"></span> per person</p>
+    <p><strong>Refund:</strong> <span id="refund"></span></p>
+    <p><strong>Reserve:</strong> Send $<span id="price2"></span> to <a href="#" id="venmoLink" style="color:#fff; text-decoration:underline;" target="_blank">@YourVenmo</a></p>
     <div class="countdown" id="countdown">Loading...</div>
+    <div class="spots" id="spotsLeft">Spots left: 20</div>
   </div>
 
   <!-- ===== MEET-UP MAP ===== -->
   <div class="map">
-    <iframe
-      width="100%"
-      height="300"
-      style="border:0;"
-      loading="lazy"
-      allowfullscreen
-      referrerpolicy="no-referrer-when-downgrade"
-      src="">
-    </iframe>
+    <iframe width="100%" height="300" style="border:0;" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade" src=""></iframe>
   </div>
 
   <div class="info">
-    <strong>Meet here at <span id="meetTime2">6:00 PM</span> sharp!</strong><br>
-    Look for the <strong>white party bus</strong> with neon lights. We leave at <span id="departTime">6:15 PM</span> — don’t be late!
+    <strong>Meet at <span id="meetTime2"></span> sharp!</strong><br>
+    Look for the <strong>white party bus</strong> with neon lights. We leave at <span id="departTime"></span> — don’t be late!
   </div>
 
   <!-- ===== RSVP FORM ===== -->
   <div class="form">
     <input type="text" id="name" placeholder="Your name" required />
-    <input type="number" id="guests" placeholder="How many (incl. you)" min="1" value="1" required />
+    <input type="email" id="email" placeholder="Email (for reminders)" />
+    <select id="guests" required>
+      <option value="1" selected>1 person (just me)</option>
+      <option value="2">2 people (me + 1)</option>
+      <option value="3">3 people (me + 2)</option>
+    </select>
     <button id="join">Yes, I’m joining!</button>
   </div>
 
+  <div id="soldOutMessage" class="soldout" style="display:none;">SOLD OUT! No more spots.</div>
   <div id="list"></div>
   <div class="total" id="total"></div>
+
+  <p class="note">
+    We'll send a reminder 24h before. <strong>Text STOP to opt out.</strong>
+  </p>
 
   <!-- ===== PAYMENT REMINDER MODAL ===== -->
   <div class="modal" id="modal">
     <div class="modal-content">
-      <span class="close" id="close">×</span>
-      <h3>You're on the bus!</h3>
-      <p>Please send <strong>$<span id="modalTotal">45</span></strong> to <a href="#" id="modalVenmo" target="_blank">@YourVenmo</a> to reserve your spot.</p>
-      <p><em>See you at <span id="meetTime3">6:00 PM</span> — can’t wait!</em></p>
+      <span class="close" id="close">x</span>
+      <h3>You're on the Luau Bus!</h3>
+      <p>Please send <strong>$<span id="modalTotal">0</span></strong> to <a href="#" id="modalVenmo" target="_blank">@YourVenmo</a> to reserve.</p>
+      <p><em>See you in your Hawaiian gear at <span id="meetTime3"></span>!</em></p>
     </div>
   </div>
 
 <script>
   // ================== EDIT THIS CONFIG ONLY ==================
   const CONFIG = {
-    eventDate: 'Febuary 31, 2026 18:00:00',  // YYYY-MM-DD HH:MM:SS (24h)
-    meetTime: '2:45:00 PM',
-    departTime: '3:00 PM',
-    meetLocation: 'GoodLife Bar & Grill, 72nd & Dodge, Omaha, NE',
-    mapEmbedUrl: 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2996.345!2d-96.023456!3d41.259789!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDHCsDE1JzM1LjIiTiA5NsKwMDInMjUuNSJX!5e0!3m2!1sen!2sus!4v1234567890!5m2!1sen!2sus', // Get from Google Maps "Share > Embed"
-    route: 'Omaha → Wahoo → Ashland → Louisville → back to Omaha',
+    maxSpots: 20,
+    eventDate: 'February 28, 2026 18:00:00',
+    meetTime: '6:00 PM',
+    departTime: '6:15 PM',
+    meetLocation: 'Parking Lot aaa behind Target, 72nd & Dodge, Omaha',
+    mapEmbedUrl: 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2996.3!2d-96.023!3d41.259!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDHCsDE1JzM1LjIiTiA5NsKwMDInMjUuNSJX!5e0!3m2!1sen!2sus!4v1234567890',
+    route: 'Omaha → Wahoo → Ashland → Louisville → back',
     pricePerPerson: 50,
     venmoUsername: 'YourVenmo',
     venmoLink: 'https://venmo.com/your-venmo',
-    refundPolicy: 'If the bus doesn’t happen do to not eaought poeople, I’ll fully refund your money. THis is cheaper than a dinner out!'
+    refundPolicy: 'Full refund if bus is canceled'
   };
   // ===========================================================
 
-  // Paste your Firebase config below
+  // === Firebase Config ===
   const firebaseConfig = {
-  apiKey: "AIzaSyDXcsti1V6fNhlDTLEOjxA6cRi9StiW-tA",
-  authDomain: "partybus-omaha.firebaseapp.com",
-  databaseURL: "https://partybus-omaha-default-rtdb.firebaseio.com",
-  projectId: "partybus-omaha",
-  storageBucket: "partybus-omaha.firebasestorage.app",
-  messagingSenderId: "463029096908",
-  appId: "1:463029096908:web:e40a660ffae68ef34d0d69"
-};
-
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+    projectId: "YOUR_PROJECT",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "123456789",
+    appId: "1:123456789:web:abc123def456"
+  };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database().ref('rsvps');
 
-  // DOM Elements
+  // DOM
   const countdownEl = document.getElementById('countdown');
+  const spotsEl = document.getElementById('spotsLeft');
+  const soldOutEl = document.getElementById('soldOutMessage');
   const modal = document.getElementById('modal');
   const close = document.getElementById('close');
   const nameInput = document.getElementById('name');
+  const emailInput = document.getElementById('email');
   const guestsInput = document.getElementById('guests');
   const joinBtn = document.getElementById('join');
   const listEl = document.getElementById('list');
   const totalEl = document.getElementById('total');
 
-  // Update all text from CONFIG
+  // Update text
   document.getElementById('eventDate').textContent = new Date(CONFIG.eventDate).toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
   document.getElementById('meetTime').textContent = document.getElementById('meetTime2').textContent = document.getElementById('meetTime3').textContent = CONFIG.meetTime;
   document.getElementById('departTime').textContent = CONFIG.departTime;
@@ -135,31 +147,26 @@
   document.getElementById('refund').textContent = CONFIG.refundPolicy;
   document.getElementById('venmoLink').href = document.getElementById('modalVenmo').href = CONFIG.venmoLink;
   document.getElementById('venmoLink').textContent = document.getElementById('modalVenmo').textContent = '@' + CONFIG.venmoUsername;
-
-  // Set map
   document.querySelector('iframe').src = CONFIG.mapEmbedUrl;
 
   // Close modal
   close.onclick = () => modal.style.display = 'none';
   window.onclick = e => { if (e.target === modal) modal.style.display = 'none'; };
 
-  // Countdown Timer
+  // Countdown
   function updateCountdown() {
     const now = new Date().getTime();
     const event = new Date(CONFIG.eventDate).getTime();
     const diff = event - now;
-
     if (diff <= 0) {
-      countdownEl.textContent = "The party bus is here! Go to meet-up!";
+      countdownEl.textContent = "Luau time! Head to meet-up!";
       countdownEl.style.color = "#4caf50";
       return;
     }
-
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
+    const days = Math.floor(diff / (1000*60*60*24));
+    const hours = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
+    const minutes = Math.floor((diff % (1000*60*60)) / (1000*60));
+    const seconds = Math.floor((diff % (1000*60)) / 1000);
     countdownEl.innerHTML = `${days}d ${hours}h ${minutes}m ${seconds}s`;
   }
   setInterval(updateCountdown, 1000);
@@ -168,28 +175,44 @@
   // Submit RSVP
   joinBtn.onclick = () => {
     const name = nameInput.value.trim();
-    const guests = parseInt(guestsInput.value) || 1;
+    const email = emailInput.value.trim();
+    const guests = parseInt(guestsInput.value);
     if (!name) return alert('Enter your name');
     const totalCost = guests * CONFIG.pricePerPerson;
-    db.push({name, guests, totalCost, ts: Date.now()});
-    nameInput.value = ''; guestsInput.value = 1;
+    db.push({name, email, guests, ts: Date.now()});
+    nameInput.value = ''; emailInput.value = ''; guestsInput.value = 1;
     document.getElementById('modalTotal').textContent = totalCost;
     modal.style.display = 'flex';
   };
 
-  // Live list
+  // Live update
   db.on('value', snapshot => {
     const data = snapshot.val() || {};
     const entries = Object.values(data);
     entries.sort((a,b)=> b.ts - a.ts);
 
+    const totalPeople = entries.reduce((s,e)=>s+e.guests,0);
+    const spotsLeft = CONFIG.maxSpots - totalPeople;
+
+    // Update spots
+    spotsEl.textContent = `Spots left: ${spotsLeft >= 0 ? spotsLeft : 0}`;
+    if (spotsLeft <= 0) {
+      joinBtn.disabled = true;
+      joinBtn.textContent = "Sold Out";
+      soldOutEl.style.display = 'block';
+    } else {
+      joinBtn.disabled = false;
+      joinBtn.textContent = "Yes, I’m joining!";
+      soldOutEl.style.display = 'none';
+    }
+
+    // List
     listEl.innerHTML = '<ul>' + entries.map(e =>
-      `<li><strong>${e.name}</strong> – ${e.guests} ${e.guests===1?'person':'people'} ($${e.totalCost})</li>`
+      `<li><strong>${e.name}</strong> – ${e.guests} ${e.guests===1?'person':'people'}</li>`
     ).join('') + '</ul>';
 
-    const totalPeople = entries.reduce((s,e)=>s+e.guests,0);
-    const totalMoney = entries.reduce((s,e)=>s+e.totalCost,0);
-    totalEl.innerHTML = `Total: <strong>${totalPeople}</strong> ${totalPeople===1?'person':'people'} – <strong>$${totalMoney}</strong> collected`;
+    // Total
+    totalEl.innerHTML = `Total: <strong>${totalPeople}</strong> ${totalPeople===1?'person':'people'} on the bus`;
   });
 </script>
 </body>
