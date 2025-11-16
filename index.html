@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -33,4 +32,220 @@
     .pending {color:var(--red);}
     .paid {color:var(--green);}
     .total {font-weight:bold; margin:1.5rem 0; text-align:center; font-size:1.2rem; color:var(--primary);}
-    .modal, .fullmodal {display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.
+    .modal, .fullmodal {display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; z-index:99;}
+    .modal-content, .fullmodal-content {background:white; padding:1.5rem; border-radius:12px; max-width:90%; text-align:center;}
+    .close {float:right; font-size:1.5rem; cursor:pointer;}
+    .info {background:#e6f7ff; padding:1rem; border-radius:8px; margin:1rem 0; font-size:0.95rem;}
+    .note {font-size:0.85rem; color:#555; text-align:center; margin:1rem 0;}
+  </style>
+</head>
+<body>
+
+  <!-- BANNER - ALL PARTY INFO -->
+  <div class="banner">
+    <h2>Luau Party Bus 2026!</h2>
+    <p class="theme">Dress in Hawaiian gear! (Lei, grass skirt, flip flops, etc.)</p>
+    <p><strong>Date:</strong> <span id="eventDate">February 28, 2026</span></p>
+    <p><strong>Meet-up Time:</strong> <span id="meetTime">6:00 PM</span></p>
+    <p><strong>Location:</strong> <span id="meetLocation">Parking Lot aaa behind Target, 72nd & Dodge, Omaha</span></p>
+    <p><strong>Route:</strong> <span id="route">Omaha → Wahoo → Ashland → Louisville → back</span></p>
+    <p><strong>Cost:</strong> $<span id="price">50</span> per person</p>
+    <p><strong>Refund:</strong> <span id="refund">Full refund if bus is canceled</span></p>
+    <p><strong>Reserve:</strong> Send $<span id="price2">50</span> to <a href="#" id="venmoLink" style="color:#fff; text-decoration:underline;" target="_blank">@YourVenmo</a></p>
+    <div class="countdown" id="countdown">Loading...</div>
+    <div class="spots" id="spotsLeft">Paid spots left: 20</div>
+  </div>
+
+  <!-- MEET-UP INFO -->
+  <div class="info">
+    <strong>Meet at <span id="meetTime2">6:00 PM</span> sharp!</strong><br>
+    Look for the <strong>white party bus</strong> with neon lights. We leave at <span id="departTime">6:15 PM</span> — don’t be late!<br>
+    <em>Location: <span id="meetLocation2">Parking Lot aaa behind Target, 72nd & Dodge, Omaha</span></em>
+  </div>
+
+  <!-- RSVP FORM -->
+  <div class="form">
+    <input type="text" id="name" placeholder="Your name" required />
+    <input type="email" id="email" placeholder="Email (for reminders)" />
+    <select id="guests" required>
+      <option value="1" selected>1 person (just me)</option>
+      <option value="2">2 people (me + 1)</option>
+      <option value="3">3 people (me + 2)</option>
+    </select>
+    <button id="join">Yes, I’m joining!</button>
+  </div>
+
+  <div id="list"></div>
+  <div class="total" id="total"></div>
+
+  <p class="note">We’ll send a reminder 24h before. <strong>Text STOP to opt out.</strong></p>
+
+  <!-- PAYMENT MODAL -->
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <span class="close" id="close">x</span>
+      <h3>You're on the Luau Bus!</h3>
+      <p>Please send <strong>$<span id="modalTotal">0</span></strong> to <a href="#" id="modalVenmo" target="_blank">@YourVenmo</a> to reserve.</p>
+      <p><em>See you in your Hawaiian gear at 6:00 PM!</em></p>
+    </div>
+  </div>
+
+  <!-- BUS FULL WARNING -->
+  <div class="fullmodal" id="fullModal">
+    <div class="fullmodal-content">
+      <span class="close" id="fullClose">x</span>
+      <h3>Bus Full — Pay to Secure Spot!</h3>
+      <p><strong>20 people have paid.</strong> You can RSVP, but <strong>only paid guests board</strong>.</p>
+      <p>Send $<span id="warnCost">0</span> to <a href="#" id="warnVenmo" target="_blank">@YourVenmo</a> to secure your spot.</p>
+      <button onclick="allowRSVP()" style="background:#d32f2f; color:white; padding:0.7rem 1rem; border:none; border-radius:8px; cursor:pointer; margin-top:1rem;">I Understand — Let Me RSVP</button>
+    </div>
+  </div>
+
+<script>
+  // === CONFIG - EDIT ONLY THIS ===
+  const CONFIG = {
+    maxPaid: 20,
+    eventDate: 'February 28, 2026 18:00:00',
+    meetTime: '6:00 PM',
+    departTime: '6:15 PM',
+    meetLocation: 'Parking Lot aaa behind Target, 72nd & Dodge, Omaha',
+    route: 'Omaha → Wahoo → Ashland → Louisville → back',
+    pricePerPerson: 50,
+    venmoUsername: 'YourVenmo',
+    venmoLink: 'https://venmo.com/your-venmo',
+    refundPolicy: 'Full refund if bus is canceled'
+  };
+
+  // === FIREBASE ===
+  const firebaseConfig = {
+    apiKey: "AIzaSyDXcsti1V6fNhlDTLEOjxA6cRi9StiW-tA",
+    authDomain: "partybus-omaha.firebaseapp.com",
+    databaseURL: "https://partybus-omaha-default-rtdb.firebaseio.com",
+    projectId: "partybus-omaha",
+    storageBucket: "partybus-omaha.firebasestorage.app",
+    messagingSenderId: "463029096908",
+    appId: "1:463029096908:web:e40a660ffae68ef34d0d69"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database().ref('rsvps');
+  const viewsRef = firebase.database().ref('pageViews');
+
+  // === DOM ===
+  const modal = document.getElementById('modal');
+  const fullModal = document.getElementById('fullModal');
+  const close = document.getElementById('close');
+  const fullClose = document.getElementById('fullClose');
+  const nameInput = document.getElementById('name');
+  const emailInput = document.getElementById('email');
+  const guestsInput = document.getElementById('guests');
+  const joinBtn = document.getElementById('join');
+  const listEl = document.getElementById('list');
+  const totalEl = document.getElementById('total');
+
+  // === FILL PARTY INFO ===
+  document.getElementById('eventDate').textContent = new Date(CONFIG.eventDate).toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
+  ['meetTime','meetTime2'].forEach(id => document.getElementById(id).textContent = CONFIG.meetTime);
+  document.getElementById('departTime').textContent = CONFIG.departTime;
+  ['meetLocation','meetLocation2'].forEach(id => document.getElementById(id).textContent = CONFIG.meetLocation);
+  document.getElementById('route').textContent = CONFIG.route;
+  ['price','price2'].forEach(id => document.getElementById(id).textContent = CONFIG.pricePerPerson);
+  document.getElementById('refund').textContent = CONFIG.refundPolicy;
+  ['venmoLink','modalVenmo','warnVenmo'].forEach(id => {
+    const el = document.getElementById(id);
+    el.href = CONFIG.venmoLink;
+    el.textContent = '@' + CONFIG.venmoUsername;
+  });
+
+  // === MODALS ===
+  close.onclick = () => modal.style.display = 'none';
+  fullClose.onclick = () => fullModal.style.display = 'none';
+  window.onclick = e => { if (e.target === modal) modal.style.display = 'none'; if (e.target === fullModal) fullModal.style.display = 'none'; };
+
+  // === COUNTDOWN ===
+  function updateCountdown() {
+    const diff = new Date(CONFIG.eventDate) - Date.now();
+    if (diff <= 0) return document.getElementById('countdown').textContent = "Luau time!";
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    document.getElementById('countdown').innerHTML = `${d}d ${h}h ${m}m ${s}s`;
+  }
+  setInterval(updateCountdown, 1000); updateCountdown();
+
+  // === ALLOW RSVP AFTER WARNING ===
+  function allowRSVP() {
+    fullModal.style.display = 'none';
+    joinBtn.click();
+  }
+
+  // === SUBMIT RSVP ===
+  joinBtn.onclick = () => {
+    const name = nameInput.value.trim();
+    const email = emailInput.value.trim();
+    const guests = parseInt(guestsInput.value);
+    if (!name) return alert('Enter your name');
+
+    db.once('value').then(snap => {
+      const data = snap.val() || {};
+      const paidPeople = Object.values(data).filter(v => v.paid).reduce((s,v) => s + v.guests, 0);
+
+      if (paidPeople >= CONFIG.maxPaid) {
+        document.getElementById('warnCost').textContent = guests * CONFIG.pricePerPerson;
+        fullModal.style.display = 'flex';
+        return;
+      }
+
+      const totalCost = guests * CONFIG.pricePerPerson;
+      db.push({
+        name, email, guests, paid: false, ts: Date.now()
+      }).then(() => {
+        nameInput.value = ''; emailInput.value = ''; guestsInput.value = 1;
+        document.getElementById('modalTotal').textContent = totalCost;
+        modal.style.display = 'flex';
+      }).catch(err => alert("Error: " + err.message));
+    });
+  };
+
+  // === LIVE UPDATE LIST ===
+  db.on('value', snap => {
+    const data = snap.val() || {};
+    const entries = Object.values(data).sort((a,b) => b.ts - a.ts);
+    const totalPeople = entries.reduce((s,e) => s + e.guests, 0);
+    const paidPeople = entries.filter(e => e.paid).reduce((s,e) => s + e.guests, 0);
+    const spotsLeft = CONFIG.maxPaid - paidPeople;
+
+    document.getElementById('spotsLeft').textContent = `Paid spots left: ${spotsLeft >= 0 ? spotsLeft : 0}`;
+    if (spotsLeft <= 0) document.getElementById('spotsLeft').style.color = '#d00';
+
+    listEl.innerHTML = '<ul>' + entries.map(e => {
+      const status = e.paid ? `<span class="status paid">(paid)</span>` : `<span class="status pending">(pending)</span>`;
+      return `<li><strong>${e.name}</strong> – ${e.guests} ${e.guests>1?'people':'person'} ${status}</li>`;
+    }).join('') + '</ul>';
+
+    totalEl.innerHTML = `Total: <strong>${totalPeople}</strong> RSVPs | <strong>${paidPeople}</strong> paid on bus`;
+  });
+
+  // === PAGE VIEW TRACKING ===
+  (function() {
+    if (sessionStorage.getItem('viewed')) return;
+    sessionStorage.setItem('viewed', 'true');
+
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const device = isMobile ? 'Mobile' : 'Desktop';
+
+    fetch('https://api.ipify.org?format=json')
+      .then(r => r.json())
+      .catch(() => ({ ip: 'unknown' }))
+      .then(data => {
+        viewsRef.push({
+          ts: Date.now(),
+          device: device,
+          ip: data.ip,
+          page: 'index'
+        });
+      });
+  })();
+</script>
+</body>
+</html>
