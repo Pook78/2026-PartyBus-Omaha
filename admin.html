@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,7 +6,6 @@
   <title>Luau Bus Admin</title>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
   <style>
     * {box-sizing:border-box;}
     body {font-family:system-ui,sans-serif; max-width:700px; margin:2rem auto; padding:1rem; background:#f9f9f9; color:#222;}
@@ -18,8 +16,10 @@
     .login button {background:#d32f2f; color:white;}
     .login button:hover {background:#b71c1c;}
     .hidden {display:none;}
-    .stats {text-align:center; font-weight:bold; margin:1rem 0; font-size:1.1rem;}
+    .stats {text-align:center; font-weight:bold; margin:1rem 0; font-size:1.1rem; background:#fff; padding:1rem; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1);}
     .export {display:block; margin:1rem auto; background:#1976d2; color:white; padding:0.8rem 1.5rem;}
+    .section {margin-top:2rem;}
+    .section h2 {font-size:1.3rem; color:#d32f2f; border-bottom:2px solid #eee; padding-bottom:0.5rem;}
     ul {list-style:none; padding:0;}
     li {background:white; margin:0.5rem 0; padding:1rem; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;}
     .info strong {font-size:1.1rem;}
@@ -30,6 +30,8 @@
     .mark {background:#4caf50; color:white;}
     .mark:disabled {background:#ccc; cursor:not-allowed;}
     .remove {background:#d32f2f; color:white;}
+    .views {background:#e3f2fd; padding:1rem; border-radius:8px; margin:1rem 0;}
+    .views h3 {margin:0.5rem 0; color:#1976d2;}
   </style>
 </head>
 <body>
@@ -45,20 +47,33 @@
   <!-- ADMIN DASHBOARD -->
   <div id="admin" class="hidden">
     <h1>Luau Bus Admin</h1>
-    <div class="stats">
-      RSVPs: <span id="count">0</span> | 
-      Spots Used: <span id="spots">0</span>/20 | 
-      Paid: <span id="paid">0</span>
+    
+    <!-- STATS -->
+    <div class="stats" id="stats">
+      Loading...
     </div>
-    <button class="export" onclick="exportCSV()">Download CSV</button>
-    <ul id="list"></ul>
+
+    <!-- EXPORT BUTTONS -->
+    <button class="export" onclick="exportRSVP()">Download RSVPs CSV</button>
+    <button class="export" onclick="exportViews()" style="background:#7b1fa2;">Download Views CSV</button>
+
+    <!-- RSVPS -->
+    <div class="section">
+      <h2>RSVP List</h2>
+      <ul id="rsvpList"></ul>
+    </div>
+
+    <!-- PAGE VIEWS -->
+    <div class="section">
+      <h2>Page Views</h2>
+      <div class="views" id="viewsSummary">Loading...</div>
+      <ul id="viewList"></ul>
+    </div>
   </div>
 
 <script>
   // === SETTINGS ===
   const PASSWORD = "bob1234";
-  const EMAILJS_USER_ID = "YOUR_EMAILJS_USER_ID"; // ← Optional: set at emailjs.com
-  const EMAILJS_TEMPLATE = "template_luau_paid";
 
   // === FIREBASE ===
   const firebaseConfig = {
@@ -71,35 +86,36 @@
     appId: "1:463029096908:web:e40a660ffae68ef34d0d69"
   };
   firebase.initializeApp(firebaseConfig);
-  const db = firebase.database().ref('rsvps');
-
-  // EmailJS (optional)
-  if (EMAILJS_USER_ID !== "YOUR_EMAILJS_USER_ID") emailjs.init(EMAILJS_USER_ID);
+  const rsvpRef = firebase.database().ref('rsvps');
+  const viewsRef = firebase.database().ref('pageViews');
 
   // === LOGIN ===
   function login() {
     if (document.getElementById('pass').value === PASSWORD) {
       document.getElementById('login').classList.add('hidden');
       document.getElementById('admin').classList.remove('hidden');
-      loadData();
+      loadAll();
     } else {
       alert("Wrong password!");
     }
   }
 
-  // === LOAD & DISPLAY ===
-  function loadData() {
-    db.on('value', snap => {
+  // === LOAD ALL DATA ===
+  function loadAll() {
+    loadRSVPs();
+    loadViews();
+  }
+
+  // === LOAD RSVPS ===
+  function loadRSVPs() {
+    rsvpRef.on('value', snap => {
       const data = snap.val() || {};
       const entries = Object.entries(data).sort((a,b) => b[1].ts - a[1].ts);
       const totalSpots = entries.reduce((s,[k,v]) => s + v.guests, 0);
       const paidCount = entries.filter(([k,v]) => v.paid).length;
+      const paidPeople = entries.filter(([k,v]) => v.paid).reduce((s,[k,v]) => s + v.guests, 0);
 
-      document.getElementById('count').textContent = entries.length;
-      document.getElementById('spots').textContent = totalSpots;
-      document.getElementById('paid').textContent = paidCount;
-
-      document.getElementById('list').innerHTML = entries.map(([key, v]) => `
+      document.getElementById('rsvpList').innerHTML = entries.map(([key, v]) => `
         <li>
           <div class="info">
             <strong>${v.name}</strong> – ${v.guests} ${v.guests>1?'people':'person'}
@@ -110,56 +126,96 @@
             <button class="btn mark" ${v.paid?'disabled':''} onclick="markPaid('${key}', '${v.email||''}', '${v.name}')">
               ${v.paid?'Paid':'Mark Paid'}
             </button>
-            <button class="btn remove" onclick="removeEntry('${key}', '${v.name}')">Remove</button>
+            <button class="btn remove" onclick="removeRSVP('${key}', '${v.name}')">Remove</button>
           </div>
+        </li>
+      `).join('');
+
+      updateStats(entries.length, totalSpots, paidCount, paidPeople);
+    });
+  }
+
+  // === LOAD PAGE VIEWS ===
+  function loadViews() {
+    viewsRef.on('value', snap => {
+      const data = snap.val() || {};
+      const views = Object.entries(data).sort((a,b) => b[1].ts - a[1].ts);
+      const total = views.length;
+      const mobile = views.filter(([k,v]) => v.device.includes('iPhone') || v.device.includes('Android')).length;
+      const desktop = total - mobile;
+      const uniqueIPs = new Set(views.map(([k,v]) => v.ip)).size;
+
+      document.getElementById('viewsSummary').innerHTML = `
+        <h3>Total Views: <strong>${total}</strong></h3>
+        <p>Mobile: <strong>${mobile}</strong> | Desktop: <strong>${desktop}</strong> | Unique IPs: <strong>${uniqueIPs}</strong></p>
+      `;
+
+      document.getElementById('viewList').innerHTML = views.slice(0, 20).map(([k, v]) => `
+        <li>
+          <div><strong>${v.device}</strong> – ${v.ip}</div>
+          <div><small>${new Date(v.ts).toLocaleString()}</small></div>
         </li>
       `).join('');
     });
   }
 
+  // === UPDATE STATS BAR ===
+  function updateStats(rsvpCount, totalSpots, paidCount, paidPeople) {
+    const liveViews = document.querySelectorAll('#viewList li').length;
+    document.getElementById('stats').innerHTML = `
+      RSVPs: <strong>${rsvpCount}</strong> | 
+      Spots Used: <strong>${totalSpots}</strong>/40 | 
+      Paid: <strong>${paidCount}</strong> (${paidPeople} people) | 
+      Live Views: <strong>${liveViews}</strong>
+    `;
+  }
+
   // === MARK PAID ===
   function markPaid(key, email, name) {
     if (confirm(`Mark ${name} as paid?`)) {
-      db.child(key).update({ paid: true }).then(() => {
-        if (email && EMAILJS_USER_ID !== "YOUR_EMAILJS_USER_ID") {
-          emailjs.send(EMAILJS_TEMPLATE, {
-            to_name: name,
-            to_email: email,
-            message: `Aloha ${name}! Your Luau Bus spot is confirmed! See you Feb 28 at 6:00 PM!`
-          });
-        }
-      });
+      rsvpRef.child(key).update({ paid: true });
     }
   }
 
-  // === REMOVE ===
-  function removeEntry(key, name) {
-    if (confirm(`Remove ${name} from the bus?`)) {
-      db.child(key).remove();
+  // === REMOVE RSVP ===
+  function removeRSVP(key, name) {
+    if (confirm(`Remove ${name}?`)) {
+      rsvpRef.child(key).remove();
     }
   }
 
-  // === EXPORT CSV ===
-  function exportCSV() {
-    db.once('value').then(snap => {
+  // === EXPORT RSVPs CSV ===
+  function exportRSVP() {
+    rsvpRef.once('value').then(snap => {
       const data = snap.val() || {};
       const rows = [['Name','Guests','Email','Status','Added']];
       Object.values(data).forEach(v => {
-        rows.push([
-          v.name,
-          v.guests,
-          v.email || '',
-          v.paid ? 'Paid' : 'Pending',
-          new Date(v.ts).toLocaleString()
-        ]);
+        rows.push([v.name, v.guests, v.email||'', v.paid?'Paid':'Pending', new Date(v.ts).toLocaleString()]);
       });
-      const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
-      const blob = new Blob([csv], {type: 'text/csv'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `luau-rsvps-${new Date().toISOString().slice(0,10)}.csv`;
-      a.click(); URL.revokeObjectURL(url);
+      downloadCSV(rows, `luau-rsvps-${new Date().toISOString().slice(0,10)}.csv`);
     });
+  }
+
+  // === EXPORT VIEWS CSV ===
+  function exportViews() {
+    viewsRef.once('value').then(snap => {
+      const data = snap.val() || {};
+      const rows = [['Device','IP','Timestamp']];
+      Object.values(data).forEach(v => {
+        rows.push([v.device, v.ip, new Date(v.ts).toLocaleString()]);
+      });
+      downloadCSV(rows, `luau-views-${new Date().toISOString().slice(0,10)}.csv`);
+    });
+  }
+
+  // === HELPER: DOWNLOAD CSV ===
+  function downloadCSV(rows, filename) {
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {type: 'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
   }
 </script>
 </body>
