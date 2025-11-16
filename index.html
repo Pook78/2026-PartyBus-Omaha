@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,7 +8,6 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <style>
-rebuild
     :root {
       --primary: #ff4500;
       --accent: #00ced1;
@@ -62,7 +62,7 @@ rebuild
   <!-- ===== MEET-UP INFO (NO MAP) ===== -->
   <div class="info">
     <strong>Meet at <span id="meetTime2"></span> sharp!</strong><br>
-    Look for the <strong>white party bus</strong> with neon lights. We leave at <span id="departTime"></span> — don’t be late!<br>
+    Look for the <strong>white party bus</strong> with neon lights. We leave at <span id="departTime"></span> — don't be late!<br>
     <em>Location: <span id="meetLocation2"></span></em>
   </div>
 
@@ -75,7 +75,7 @@ rebuild
       <option value="2">2 people (me + 1)</option>
       <option value="3">3 people (me + 2)</option>
     </select>
-    <button id="join">Yes, I’m joining!</button>
+    <button id="join">Yes, I'm joining!</button>
   </div>
 
   <div id="soldOutMessage" class="soldout" style="display:none;">SOLD OUT! No more spots.</div>
@@ -238,7 +238,7 @@ rebuild
       soldOutEl.style.display = 'block';
     } else {
       joinBtn.disabled = false;
-      joinBtn.textContent = "Yes, I’m joining!";
+      joinBtn.textContent = "Yes, I'm joining!";
       soldOutEl.style.display = 'none';
     }
 
