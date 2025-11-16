@@ -7,6 +7,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <style>
+rebuild
     :root {
       --primary: #ff4500;
       --accent: #00ced1;
@@ -109,15 +110,16 @@
   const CONFIG = {
     maxSpots: 20,
     contactName: 'Bobby',
-    eventDate: 'February 28, 2026 16:00:00',
-    meetTime: '3:45 PM',
-    departTime: '4:00 PM',
-    meetLocation: 'GoodLife Parking Lot, 180nd & Pacific',
-    route: 'Small Town Bar Tour → back',
-    pricePerPerson: 45,
-    venmoUsername: '@PookJohnson',
-    venmoLink: 'https://venmo.com/code?user_id=3640463881930706009',
-    refundPolicy: 'Full refund if bus is canceled. No refund if you backout a week before. Fisrt to pay gets on the bus, end of story!'
+    eventDate: 'February 28, 2026 18:00:00',
+    meetTime: '6:00 PM',
+    departTime: '6:15 PM',
+    meetLocation: 'Parking Lot aaa behind Target, 72nd & Dodge, Omaha',
+    route: 'Omaha → Wahoo → Ashland → Louisville → back',
+    pricePerPerson: 50,
+    venmoUsername: 'YourVenmo',
+    venmoLink: 'https://venmo.com/your-venmo',
+    refundPolicy: 'Full refund if bus is canceled',
+    adminKey: 'SUPERSECRET2026'  // ← REQUIRED FOR DB WRITES
   };
   // ===========================================================
 
@@ -206,7 +208,14 @@
     if (!name) return alert('Enter your name');
 
     const totalCost = guests * CONFIG.pricePerPerson;
-    db.push({name, email, guests, paid: false, ts: Date.now()});
+    db.push({
+      name, 
+      email, 
+      guests, 
+      paid: false, 
+      ts: Date.now(),
+      adminKey: CONFIG.adminKey  // ← REQUIRED FOR WRITE
+    });
     nameInput.value = ''; emailInput.value = ''; guestsInput.value = 1;
     document.getElementById('modalTotal').textContent = totalCost;
     modal.style.display = 'flex';
