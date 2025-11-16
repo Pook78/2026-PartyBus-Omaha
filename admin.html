@@ -1,1 +1,166 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Luau Bus Admin</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+  <style>
+    * {box-sizing:border-box;}
+    body {font-family:system-ui,sans-serif; max-width:700px; margin:2rem auto; padding:1rem; background:#f9f9f9; color:#222;}
+    h1 {text-align:center; color:#d32f2f; margin-bottom:0.5rem;}
+    .login {text-align:center; margin:2rem 0;}
+    input {padding:0.7rem; font-size:1rem; width:200px; border:2px solid #ddd; border-radius:8px;}
+    button {padding:0.7rem 1.2rem; font-size:1rem; border:none; border-radius:8px; cursor:pointer; margin:0.4rem;}
+    .login button {background:#d32f2f; color:white;}
+    .login button:hover {background:#b71c1c;}
+    .hidden {display:none;}
+    .stats {text-align:center; font-weight:bold; margin:1rem 0; font-size:1.1rem;}
+    .export {display:block; margin:1rem auto; background:#1976d2; color:white; padding:0.8rem 1.5rem;}
+    ul {list-style:none; padding:0;}
+    li {background:white; margin:0.5rem 0; padding:1rem; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;}
+    .info strong {font-size:1.1rem;}
+    .status {font-weight:bold; font-size:0.9rem;}
+    .paid {color:#2e7d32;}
+    .pending {color:#d32f2f;}
+    .btn {padding:0.5rem 1rem; border:none; border-radius:6px; cursor:pointer; font-size:0.9rem;}
+    .mark {background:#4caf50; color:white;}
+    .mark:disabled {background:#ccc; cursor:not-allowed;}
+    .remove {background:#d32f2f; color:white;}
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="login" class="login">
+    <h2>Admin Login</h2>
+    <input type="password" id="pass" placeholder="Enter password" />
+    <button onclick="login()">Enter</button>
+    <p><small>Keep this page private!</small></p>
+  </div>
+
+  <!-- ADMIN DASHBOARD -->
+  <div id="admin" class="hidden">
+    <h1>Luau Bus Admin</h1>
+    <div class="stats">
+      RSVPs: <span id="count">0</span> | 
+      Spots Used: <span id="spots">0</span>/20 | 
+      Paid: <span id="paid">0</span>
+    </div>
+    <button class="export" onclick="exportCSV()">Download CSV</button>
+    <ul id="list"></ul>
+  </div>
+
+<script>
+  // === SETTINGS ===
+  const PASSWORD = "bob1234";
+  const EMAILJS_USER_ID = "YOUR_EMAILJS_USER_ID"; // ← Optional: set at emailjs.com
+  const EMAILJS_TEMPLATE = "template_luau_paid";
+
+  // === FIREBASE ===
+  const firebaseConfig = {
+    apiKey: "AIzaSyDXcsti1V6fNhlDTLEOjxA6cRi9StiW-tA",
+    authDomain: "partybus-omaha.firebaseapp.com",
+    databaseURL: "https://partybus-omaha-default-rtdb.firebaseio.com",
+    projectId: "partybus-omaha",
+    storageBucket: "partybus-omaha.firebasestorage.app",
+    messagingSenderId: "463029096908",
+    appId: "1:463029096908:web:e40a660ffae68ef34d0d69"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database().ref('rsvps');
+
+  // EmailJS (optional)
+  if (EMAILJS_USER_ID !== "YOUR_EMAILJS_USER_ID") emailjs.init(EMAILJS_USER_ID);
+
+  // === LOGIN ===
+  function login() {
+    if (document.getElementById('pass').value === PASSWORD) {
+      document.getElementById('login').classList.add('hidden');
+      document.getElementById('admin').classList.remove('hidden');
+      loadData();
+    } else {
+      alert("Wrong password!");
+    }
+  }
+
+  // === LOAD & DISPLAY ===
+  function loadData() {
+    db.on('value', snap => {
+      const data = snap.val() || {};
+      const entries = Object.entries(data).sort((a,b) => b[1].ts - a[1].ts);
+      const totalSpots = entries.reduce((s,[k,v]) => s + v.guests, 0);
+      const paidCount = entries.filter(([k,v]) => v.paid).length;
+
+      document.getElementById('count').textContent = entries.length;
+      document.getElementById('spots').textContent = totalSpots;
+      document.getElementById('paid').textContent = paidCount;
+
+      document.getElementById('list').innerHTML = entries.map(([key, v]) => `
+        <li>
+          <div class="info">
+            <strong>${v.name}</strong> – ${v.guests} ${v.guests>1?'people':'person'}
+            <span class="status ${v.paid?'paid':'pending'}">(${v.paid?'paid':'pending'})</span>
+            ${v.email ? `<br><small>${v.email}</small>` : ''}
+          </div>
+          <div>
+            <button class="btn mark" ${v.paid?'disabled':''} onclick="markPaid('${key}', '${v.email||''}', '${v.name}')">
+              ${v.paid?'Paid':'Mark Paid'}
+            </button>
+            <button class="btn remove" onclick="removeEntry('${key}', '${v.name}')">Remove</button>
+          </div>
+        </li>
+      `).join('');
+    });
+  }
+
+  // === MARK PAID ===
+  function markPaid(key, email, name) {
+    if (confirm(`Mark ${name} as paid?`)) {
+      db.child(key).update({ paid: true }).then(() => {
+        if (email && EMAILJS_USER_ID !== "YOUR_EMAILJS_USER_ID") {
+          emailjs.send(EMAILJS_TEMPLATE, {
+            to_name: name,
+            to_email: email,
+            message: `Aloha ${name}! Your Luau Bus spot is confirmed! See you Feb 28 at 6:00 PM!`
+          });
+        }
+      });
+    }
+  }
+
+  // === REMOVE ===
+  function removeEntry(key, name) {
+    if (confirm(`Remove ${name} from the bus?`)) {
+      db.child(key).remove();
+    }
+  }
+
+  // === EXPORT CSV ===
+  function exportCSV() {
+    db.once('value').then(snap => {
+      const data = snap.val() || {};
+      const rows = [['Name','Guests','Email','Status','Added']];
+      Object.values(data).forEach(v => {
+        rows.push([
+          v.name,
+          v.guests,
+          v.email || '',
+          v.paid ? 'Paid' : 'Pending',
+          new Date(v.ts).toLocaleString()
+        ]);
+      });
+      const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type: 'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `luau-rsvps-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click(); URL.revokeObjectURL(url);
+    });
+  }
+</script>
+</body>
+</html>
